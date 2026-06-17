@@ -7,9 +7,24 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 import joblib
 
+# Optional: Colab upload support
+def upload_csv_files():
+    try:
+        from google.colab import files
+        print("📂 Please upload your CSV files")
+        uploaded = files.upload()
+        print("✅ Upload complete:", list(uploaded.keys()))
+    except ImportError:
+        print("ℹ️ Not running in Colab, skipping upload prompt")
+
 def main():
     # =====================================
-    # STEP 1: LOAD DATA (assumes files already present)
+    # STEP 1: UPLOAD DATA (Colab option)
+    # =====================================
+    upload_csv_files()
+
+    # =====================================
+    # STEP 2: LOAD DATA
     # =====================================
     customers = pd.read_csv('customers.csv')
     orders = pd.read_csv('orders.csv')
@@ -20,14 +35,14 @@ def main():
     print("✅ Data loaded successfully")
 
     # =====================================
-    # STEP 2: DATE PROCESSING
+    # STEP 3: DATE PROCESSING
     # =====================================
     orders['order_date'] = pd.to_datetime(orders['order_date'])
     tickets['ticket_date'] = pd.to_datetime(tickets['ticket_date'])
     churn['snapshot_date'] = pd.to_datetime(churn['snapshot_date'])
 
     # =====================================
-    # STEP 3: FILTER (NO LEAKAGE)
+    # STEP 4: FILTER (NO LEAKAGE)
     # =====================================
     orders = orders.merge(churn[['customer_id','snapshot_date']], on='customer_id')
     orders = orders[orders['order_date'] <= orders['snapshot_date']]
@@ -36,7 +51,7 @@ def main():
     tickets = tickets[tickets['ticket_date'] <= tickets['snapshot_date']]
 
     # =====================================
-    # STEP 4: FEATURE ENGINEERING
+    # STEP 5: FEATURE ENGINEERING
     # =====================================
     order_agg = orders.groupby('customer_id').agg({
         'order_id': 'count',
@@ -57,7 +72,7 @@ def main():
     support_agg.columns = ['customer_id','ticket_count','avg_sentiment']
 
     # =====================================
-    # STEP 5: MERGE MODEL DATA
+    # STEP 6: MERGE MODEL DATA
     # =====================================
     df = churn.merge(order_agg, on='customer_id', how='left')
     df = df.merge(support_agg, on='customer_id', how='left')
@@ -65,7 +80,7 @@ def main():
     print("✅ Modeling dataset ready:", df.shape)
 
     # =====================================
-    # STEP 6: TRAIN MODEL
+    # STEP 7: TRAIN MODEL
     # =====================================
     X = df[['recency','frequency','monetary','ticket_count','avg_sentiment']]
     y = df['churn_next_60d']
@@ -81,7 +96,7 @@ def main():
     rf.fit(X_train, y_train)
 
     # =====================================
-    # STEP 7: EVALUATION
+    # STEP 8: EVALUATION
     # =====================================
     y_pred = rf.predict(X_test)
     y_prob = rf.predict_proba(X_test)[:,1]
@@ -91,7 +106,7 @@ def main():
     print("ROC AUC:", roc_auc_score(y_test, y_prob))
 
     # =====================================
-    # STEP 8: SAVE MODEL
+    # STEP 9: SAVE MODEL
     # =====================================
     joblib.dump(rf, 'model.pkl')
     print("\n✅ model.pkl saved successfully")
